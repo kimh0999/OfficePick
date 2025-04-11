@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>오피스픽 | 공유오피스 찾기</title>
+  <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=074a8461d988924bb608d7bca605dce3&libraries=services"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Noto Sans KR', sans-serif;
+      background: #f8f8f8;
+      color: #333;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px;
+      background: white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    header h1 {
+      font-size: 24px;
+      color: #e9411e;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 30px 20px;
+    }
+    #map {
+      width: 100%;
+      height: 400px;
+      border-radius: 10px;
+      margin-bottom: 30px;
+    }
+    .search-section {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 30px;
+    }
+    .search-section input {
+      flex: 1;
+      padding: 12px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 16px;
+    }
+    .search-section button {
+      padding: 12px 20px;
+      background: #e9411e;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .office-list {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+    .office-card {
+      background: white;
+      display: flex;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .office-card img {
+      width: 300px;
+      height: 200px;
+      object-fit: cover;
+    }
+    .office-info {
+      padding: 20px;
+      flex: 1;
+    }
+    .office-info h2 {
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
+    .office-info p {
+      margin: 4px 0;
+      font-size: 14px;
+    }
+    .btn {
+      margin-top: 12px;
+      padding: 10px 16px;
+      background: #e9411e;
+      color: white;
+      text-decoration: none;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .modal {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      display: none;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-content {
+      background: white;
+      padding: 24px;
+      border-radius: 8px;
+      max-width: 500px;
+      width: 90%;
+    }
+    .modal-content h2 { margin-top: 0; }
+    .rating {
+      display: flex;
+      gap: 5px;
+      font-size: 20px;
+      cursor: pointer;
+    }
+    .rating span.active { color: gold; }
+    textarea {
+      width: 100%;
+      height: 80px;
+      margin-top: 10px;
+      padding: 8px;
+    }
+    .modal-content input, .modal-content select {
+      width: 100%;
+      padding: 8px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>오피스픽</h1>
+    <div>📍 대한민국 공유오피스 탐색</div>
+  </header>
+
+  <div class="container">
+    <div id="map"></div>
+
+    <div class="search-section">
+      <input type="text" id="searchInput" placeholder="지역 또는 오피스명을 입력하세요">
+      <button onclick="filterOffices()">검색</button>
+    </div>
+
+    <div class="office-list" id="officeList"></div>
+  </div>
+
+  <!-- 상세 정보/리뷰/예약 모달 -->
+  <div class="modal" id="detailModal">
+    <div class="modal-content">
+      <h2 id="modalOfficeName">오피스 상세 정보</h2>
+      <p id="modalLocation"></p>
+      <p id="modalPrice"></p>
+
+      <h3>⭐ 리뷰 남기기</h3>
+      <div class="rating" id="ratingStars">
+        <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+      </div>
+      <textarea placeholder="후기를 입력하세요"></textarea>
+
+      <h3>📅 예약하기</h3>
+      <input type="date" />
+      <select>
+        <option>09:00</option>
+        <option>13:00</option>
+        <option>17:00</option>
+      </select>
+
+      <br><br>
+      <button class="btn" onclick="submitReservation()">예약 완료</button>
+      <button class="btn" style="background: gray;" onclick="closeModal()">닫기</button>
+    </div>
+  </div>
+
+  <script>
+    const offices = [
+      {
+        name: "위워크 삼성점",
+        location: "서울 강남구 삼성로 512",
+        lat: 37.510374,
+        lng: 127.058817,
+        rating: 4.5,
+        price: "월 ₩350,000~",
+        image: "images/wework.jpeg",
+      },
+      {
+        name: "패스트파이브 역삼 2호점",
+        location: "서울 강남구 테헤란로 201",
+        lat: 37.500328,
+        lng: 127.035701,
+        rating: 4.3,
+        price: "월 ₩300,000~",
+        image: "images/fast.jpeg",
+      },
+      {
+        name: "로컬스페이스 홍대",
+        location: "서울 마포구 양화로 135",
+        lat: 37.556019,
+        lng: 126.922134,
+        rating: 4.7,
+        price: "월 ₩250,000~",
+        image: "images/local.jpeg",
+      },
+    ];
+
+    function renderOffices(list) {
+      const container = document.getElementById("officeList");
+      container.innerHTML = "";
+      list.forEach((office, index) => {
+        container.innerHTML += `
+          <div class="office-card">
+            <img src="${office.image}" alt="${office.name}">
+            <div class="office-info">
+              <h2>${office.name}</h2>
+              <p>📍 ${office.location}</p>
+              <p>💸 ${office.price}</p>
+              <p>⭐ ${office.rating} / 5.0</p>
+              <button class="btn" onclick="openModal(${index})">위치 보기</button>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    function openModal(index) {
+      const office = offices[index];
+      document.getElementById("modalOfficeName").textContent = office.name;
+      document.getElementById("modalLocation").textContent = "📍 " + office.location;
+      document.getElementById("modalPrice").textContent = "💸 " + office.price;
+      document.getElementById("detailModal").style.display = "flex";
+    }
+
+    function closeModal() {
+      document.getElementById("detailModal").style.display = "none";
+    }
+
+    function submitReservation() {
+      alert("예약이 완료되었습니다! 🎉");
+      closeModal();
+    }
+
+    function filterOffices() {
+      const keyword = document.getElementById("searchInput").value.trim();
+      const result = offices.filter(o =>
+        o.name.includes(keyword) || o.location.includes(keyword)
+      );
+      renderOffices(result);
+      loadKakaoMap(result);
+    }
+
+    function centerMapToCurrentLocation(map) {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function (position) {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          const locPosition = new kakao.maps.LatLng(lat, lng);
+          map.setCenter(locPosition);
+
+          const marker = new kakao.maps.Marker({
+            map,
+            position: locPosition,
+          });
+
+          new kakao.maps.InfoWindow({
+            content: `<div style="padding:5px;">📍 현재 위치</div>`,
+          }).open(map, marker);
+        });
+      }
+    }
+
+    function loadKakaoMap(list = offices) {
+      const container = document.getElementById("map");
+      const map = new kakao.maps.Map(container, {
+        center: new kakao.maps.LatLng(37.55, 126.98),
+        level: 6,
+      });
+
+      centerMapToCurrentLocation(map);
+
+      list.forEach(office => {
+        const marker = new kakao.maps.Marker({
+          map,
+          position: new kakao.maps.LatLng(office.lat, office.lng),
+        });
+
+        const infowindow = new kakao.maps.InfoWindow({
+          content: `
+            <div style="padding:10px;">
+              <strong>${office.name}</strong><br/>
+              ${office.price}<br/>
+              ${office.location}
+            </div>
+          `,
+        });
+
+        kakao.maps.event.addListener(marker, 'click', () => {
+          infowindow.open(map, marker);
+        });
+      });
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      renderOffices(offices);
+      loadKakaoMap();
+
+      // 별점 클릭 이벤트
+      document.querySelectorAll("#ratingStars span").forEach((star, i) => {
+        star.addEventListener("click", () => {
+          document.querySelectorAll("#ratingStars span").forEach((s, idx) => {
+            s.classList.toggle("active", idx <= i);
+          });
+        });
+      });
+    });
+  </script>
+</body>
+</html>
